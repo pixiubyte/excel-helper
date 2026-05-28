@@ -1,310 +1,629 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Examinfo/LIS 数据浏览</title>
-  <style>
-    :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    body { margin: 0; background: #f6f7f9; color: #17202a; }
-    header { background: #184d47; color: #fff; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; }
-    h1 { margin: 0; font-size: 20px; letter-spacing: 0; }
-    main { padding: 20px 24px 32px; }
-    .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
-    .progress-wrap { background: white; border: 1px solid #e1e6ef; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
-    .progress-meta { display: flex; justify-content: space-between; gap: 12px; color: #475467; font-size: 13px; margin-bottom: 8px; }
-    .progress-bar { height: 10px; background: #edf1f5; border-radius: 999px; overflow: hidden; }
-    .progress-fill { height: 100%; width: 0%; background: #16a34a; transition: width .25s ease; }
-    .pager { display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin: 12px 0; color: #475467; font-size: 13px; }
-    button { border: 0; background: #2563eb; color: white; padding: 9px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; }
-    button.secondary { background: #eef2f7; color: #1f2937; }
-    button:disabled { opacity: .45; cursor: not-allowed; }
-    input { padding: 9px 10px; border: 1px solid #cfd7e3; border-radius: 6px; min-width: 260px; }
-    .cards { display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
-    .card { background: white; border: 1px solid #e1e6ef; border-radius: 8px; padding: 14px; }
-    .card .label { color: #667085; font-size: 12px; }
-    .card .value { font-size: 24px; font-weight: 700; margin-top: 6px; }
-    table { width: 100%; border-collapse: collapse; background: white; border: 1px solid #e1e6ef; border-radius: 8px; overflow: hidden; }
-    th, td { padding: 10px 9px; border-bottom: 1px solid #edf1f5; font-size: 13px; text-align: left; white-space: nowrap; }
-    th { background: #f0f4f8; color: #344054; }
-    tr:hover td { background: #f8fbff; }
-    .status { color: #475467; font-size: 13px; }
-    .modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .52); display: none; align-items: center; justify-content: center; padding: 24px; z-index: 20; }
-    .modal-backdrop.open { display: flex; }
-    .modal { width: min(1120px, 96vw); max-height: 88vh; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 24px 80px rgba(15, 23, 42, .28); display: flex; flex-direction: column; }
-    .modal-title { padding: 14px 16px; background: #184d47; color: white; display: flex; align-items: center; justify-content: space-between; }
-    .modal-title h2 { margin: 0; font-size: 16px; }
-    .modal-body { padding: 14px; overflow: auto; display: grid; grid-template-columns: 360px 1fr; gap: 12px; }
-    .detail-card { background: white; border: 1px solid #e1e6ef; border-radius: 8px; overflow: hidden; }
-    .detail-head { padding: 10px 12px; background: #f0f4f8; font-weight: 700; color: #344054; display: flex; justify-content: space-between; align-items: center; }
-    .kv { display: grid; grid-template-columns: 120px 1fr; gap: 6px 10px; padding: 12px; font-size: 13px; }
-    .kv span:nth-child(odd) { color: #667085; }
-    .field-grid { display: grid; grid-template-columns: 150px 1fr; gap: 0; max-height: 420px; overflow: auto; font-size: 12px; }
-    .field-grid span { padding: 7px 9px; border-bottom: 1px solid #edf1f5; word-break: break-all; white-space: normal; }
-    .field-grid span:nth-child(4n+1), .field-grid span:nth-child(4n+2) { background: #fbfcfe; }
-    .field-grid span:nth-child(odd) { color: #667085; font-weight: 600; }
-    .empty { padding: 18px; color: #667085; font-size: 13px; }
-    .error { padding: 12px; color: #b42318; background: #fff4f2; border: 1px solid #ffd5cf; border-radius: 8px; font-size: 13px; }
-    .mini-table { max-height: 420px; overflow: auto; }
-    pre { margin: 0; padding: 12px; background: #101828; color: #e5e7eb; overflow: auto; max-height: 420px; border-radius: 8px; font-size: 12px; }
-    @media (max-width: 900px) { .cards, .modal-body { grid-template-columns: 1fr; } }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>体检数据导入工具</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+a{color:#38bdf8;text-decoration:none}
+
+/* 顶栏 */
+.topbar{display:flex;align-items:center;gap:16px;padding:14px 24px;background:#1e293b;border-bottom:1px solid #334155;position:sticky;top:0;z-index:100}
+.topbar h1{font-size:1rem;font-weight:700;color:#f1f5f9;flex:1}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:.75rem;font-weight:600}
+.pill-ok{background:#14532d;color:#4ade80}
+.pill-err{background:#7f1d1d;color:#f87171}
+.pill-warn{background:#451a03;color:#fb923c}
+.pill-blue{background:#0c4a6e;color:#38bdf8}
+
+/* 标签页 */
+.tabs{display:flex;gap:0;border-bottom:1px solid #334155;padding:0 24px;background:#1e293b}
+.tab{padding:12px 18px;font-size:.875rem;cursor:pointer;color:#94a3b8;border-bottom:2px solid transparent;transition:all .15s}
+.tab:hover{color:#e2e8f0}
+.tab.active{color:#38bdf8;border-bottom-color:#38bdf8}
+
+/* 主区域 */
+.content{padding:20px 24px;max-width:1400px}
+
+/* 卡片 */
+.card{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:18px;margin-bottom:14px}
+.card h2{font-size:.8rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px}
+
+/* 统计网格 */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.stat-box{background:#0f172a;border-radius:8px;padding:14px;text-align:center}
+.stat-box .sv{font-size:1.6rem;font-weight:700;color:#f1f5f9}
+.stat-box .sl{font-size:.75rem;color:#64748b;margin-top:4px}
+
+/* 进度条 */
+.prog-wrap{background:#0f172a;border-radius:6px;height:14px;overflow:hidden;margin:8px 0}
+.prog-bar{height:100%;background:linear-gradient(90deg,#38bdf8,#818cf8);border-radius:6px;transition:width .4s}
+
+/* 按钮 */
+.btn{padding:8px 18px;border:none;border-radius:7px;cursor:pointer;font-size:.85rem;font-weight:600;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-primary{background:#38bdf8;color:#0f172a}
+.btn-danger{background:#f87171;color:#0f172a}
+.btn-ghost{background:#334155;color:#e2e8f0}
+.btn-sm{padding:5px 12px;font-size:.78rem}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+
+/* 表格 */
+.tbl-wrap{overflow-x:auto;margin-top:10px}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{background:#0f172a;color:#64748b;font-weight:600;padding:8px 10px;text-align:left;white-space:nowrap}
+td{padding:7px 10px;border-top:1px solid #1e293b;color:#cbd5e1;white-space:nowrap}
+tr:hover td{background:#1e293b}
+
+/* 徽章 */
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.72rem;font-weight:600}
+.b-running{background:#0c4a6e;color:#38bdf8}
+.b-completed{background:#14532d;color:#4ade80}
+.b-error{background:#7f1d1d;color:#f87171}
+.b-rolled_back{background:#374151;color:#9ca3af}
+.b-stopped{background:#451a03;color:#fb923c}
+.b-pending{background:#1e293b;color:#94a3b8}
+
+/* 日志框 */
+.log-box{background:#020617;border:1px solid #1e293b;border-radius:6px;font-family:Consolas,monospace;font-size:.78rem;color:#94a3b8;padding:12px;height:200px;overflow-y:auto;margin-top:10px;white-space:pre-wrap;word-break:break-all}
+.log-box .le{color:#f87171}.log-box .lw{color:#fb923c}.log-box .lo{color:#4ade80}
+
+/* 导入控制区 */
+.import-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.quick-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.quick-btns .btn{padding:14px 8px;font-size:.9rem}
+input[type=number],input[type=text]{background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:6px;padding:7px 10px;font-size:.85rem;width:100%}
+label{font-size:.8rem;color:#94a3b8;margin-bottom:3px;display:block}
+
+/* 详情侧栏 */
+.detail-back{color:#94a3b8;font-size:.85rem;cursor:pointer;margin-bottom:14px;display:inline-block}
+.detail-back:hover{color:#38bdf8}
+
+/* 分页 */
+.pager{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:.82rem;color:#64748b}
+.pager button{background:#1e293b;border:1px solid #334155;color:#94a3b8;border-radius:5px;padding:4px 10px;cursor:pointer}
+.pager button:disabled{opacity:.4;cursor:not-allowed}
+.pager button:hover:not(:disabled){color:#f1f5f9}
+
+@media(max-width:700px){.import-grid{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
-  <header>
-    <h1>Examinfo/LIS 数据浏览</h1>
-    <div class="status" id="status">未扫描</div>
-  </header>
-  <main>
-    <div class="toolbar">
-      <button onclick="startScan()">扫描 Excel</button>
-      <button class="secondary" onclick="loadStats(); loadPatients()">刷新</button>
-      <input id="q" placeholder="搜索 EXAMINATION_ID 或姓名" onkeydown="if(event.key==='Enter') loadPatients()" />
-      <button class="secondary" onclick="loadPatients()">查询</button>
+
+<div class="topbar">
+  <h1>📋 体检/LIS 数据导入工具</h1>
+  <span class="pill pill-blue" id="t-source">数据源 —</span>
+  <span class="pill pill-blue" id="t-mysql">MySQL —</span>
+  <span class="pill pill-blue" id="t-active" style="display:none">运行中…</span>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('overview')">概览</div>
+  <div class="tab" onclick="switchTab('preview')">数据预览</div>
+  <div class="tab" onclick="switchTab('import')">导入控制</div>
+  <div class="tab" onclick="switchTab('batches')">批次记录</div>
+</div>
+
+<div class="content">
+
+<!-- ══════════════════ 概览 ══════════════════ -->
+<div id="tab-overview">
+  <div class="card">
+    <h2>数据源（9111）</h2>
+    <div class="stat-grid">
+      <div class="stat-box"><div class="sv" id="ov-src-patients">—</div><div class="sl">患者总数</div></div>
+      <div class="stat-box"><div class="sv" id="ov-src-lis">—</div><div class="sl">LIS 行数</div></div>
+      <div class="stat-box"><div class="sv" id="ov-src-abnormal">—</div><div class="sl">异常项</div></div>
+      <div class="stat-box"><div class="sv" id="ov-src-examfiles">—</div><div class="sl">体检文件</div></div>
     </div>
-    <section class="progress-wrap">
-      <div class="progress-meta">
-        <span id="progressText">扫描进度：未扫描</span>
-        <span id="progressCount">exam 0 / lis 0</span>
-      </div>
-      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-      <div id="scanSummary" style="display:none; margin-top:8px; font-size:13px; color:#344054; line-height:1.6;"></div>
-    </section>
+    <div style="margin-top:10px;font-size:.8rem;color:#64748b" id="ov-scan-msg">扫描状态：加载中…</div>
+  </div>
 
-    <section class="cards">
-      <div class="card"><div class="label">患者数</div><div class="value" id="patients">-</div></div>
-      <div class="card"><div class="label">有 LIS 患者</div><div class="value" id="patients_with_lis">-</div></div>
-      <div class="card"><div class="label">LIS 明细</div><div class="value" id="lis_rows">-</div></div>
-      <div class="card"><div class="label">异常明细</div><div class="value" id="abnormal_rows">-</div></div>
-    </section>
+  <div class="card">
+    <h2>MySQL 已入库</h2>
+    <div id="mysql-unavail" style="display:none;color:#fb923c;font-size:.85rem;margin-bottom:10px">⚠️ MySQL 不可用，以下数据不可查看</div>
+    <div class="stat-grid">
+      <div class="stat-box"><div class="sv" id="ov-db-patients">—</div><div class="sl">patients</div></div>
+      <div class="stat-box"><div class="sv" id="ov-db-exams">—</div><div class="sl">体检记录</div></div>
+      <div class="stat-box"><div class="sv" id="ov-db-results">—</div><div class="sl">体检结果</div></div>
+      <div class="stat-box"><div class="sv" id="ov-db-fsp">—</div><div class="sl">FSP评估</div></div>
+      <div class="stat-box"><div class="sv" id="ov-db-ascvd">—</div><div class="sl">ASCVD评估</div></div>
+      <div class="stat-box"><div class="sv" id="ov-db-cpar">—</div><div class="sl">ChinaPAR</div></div>
+    </div>
+    <div class="btn-row"><button class="btn btn-ghost btn-sm" onclick="loadOverview()">刷新</button></div>
+  </div>
 
-    <table>
-      <thead>
-        <tr>
-          <th>EXAMINATION_ID</th><th>姓名</th><th>性别</th><th>出生日期</th><th>体检日期</th>
-          <th>血压</th><th>腰围</th><th>BMI</th><th>LIS</th><th>异常</th><th>操作</th>
-        </tr>
-      </thead>
-      <tbody id="rows"></tbody>
-    </table>
+  <div class="card">
+    <h2>最近批次</h2>
+    <div id="ov-recent-batches">加载中…</div>
+  </div>
+</div>
+
+<!-- ══════════════════ 数据预览 ══════════════════ -->
+<div id="tab-preview" style="display:none">
+  <div class="card">
+    <h2>患者列表预览（来自 9111）</h2>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="text" id="preview-q" placeholder="搜索 exam_id / 姓名" style="max-width:220px">
+      <button class="btn btn-ghost btn-sm" onclick="loadPreview(1)">搜索</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>ExamID</th><th>姓名</th><th>性别</th><th>出生日期</th><th>体检日期</th>
+          <th>左收缩压</th><th>腰围</th><th>BMI</th><th>LIS数</th><th>异常数</th></tr></thead>
+        <tbody id="preview-body"><tr><td colspan="10" style="text-align:center;color:#64748b">—</td></tr></tbody>
+      </table>
+    </div>
     <div class="pager">
-      <button class="secondary" id="prevBtn" onclick="prevPage()">上一页</button>
-      <span id="pageInfo">第 1 页</span>
-      <button class="secondary" id="nextBtn" onclick="nextPage()">下一页</button>
+      <button id="prev-prev" onclick="previewPage--; loadPreview(previewPage)" disabled>‹</button>
+      <span id="prev-info">—</span>
+      <button id="prev-next" onclick="previewPage++; loadPreview(previewPage)" disabled>›</button>
     </div>
+  </div>
+</div>
 
-    <div class="modal-backdrop" id="detailModal" onclick="if(event.target===detailModal) closeDetail()">
-      <div class="modal">
-        <div class="modal-title">
-          <h2 id="detailTitle">患者详情</h2>
-          <button class="secondary" onclick="closeDetail()">关闭</button>
-        </div>
-        <div class="modal-body">
-          <section class="detail-card">
-            <div class="detail-head"><span>患者摘要</span></div>
-            <div class="kv" id="examinfo">加载中...</div>
-            <div class="detail-head"><span>Examinfo 全字段</span><span id="examFieldCount"></span></div>
-            <div class="field-grid" id="examAllFields"></div>
-          </section>
-          <section class="detail-card">
-            <div class="detail-head"><span>LIS 明细</span><span id="lisCount">加载中</span></div>
-            <div class="mini-table">
-              <table>
-                <thead><tr><th>项目</th><th>结果</th><th>单位</th><th>参考值</th><th>异常</th></tr></thead>
-                <tbody id="lis"></tbody>
-              </table>
-            </div>
-          </section>
-        </div>
+<!-- ══════════════════ 导入控制 ══════════════════ -->
+<div id="tab-import" style="display:none">
+  <div class="import-grid">
+    <!-- 快捷按钮 -->
+    <div class="card">
+      <h2>快速导入</h2>
+      <div class="quick-btns">
+        <button class="btn btn-primary" onclick="startImport('test_1')">测试导入 1 条</button>
+        <button class="btn btn-primary" onclick="startImport('test_10')">测试导入 10 条</button>
+        <button class="btn btn-primary" onclick="startImport('test_100')">测试导入 100 条</button>
+        <button class="btn btn-ghost" onclick="startImport('full')">🚀 全量导入</button>
+      </div>
+      <div style="margin-top:14px">
+        <label>自定义：offset</label>
+        <input type="number" id="custom-offset" value="0" min="0">
+        <label style="margin-top:8px">数量 (limit)</label>
+        <input type="number" id="custom-limit" value="50" min="1" max="99999">
+        <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="startImport('custom')">开始</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-danger" id="btn-stop" onclick="stopImport()" disabled>■ 停止当前</button>
       </div>
     </div>
-  </main>
-  <script>
-    let page = 1;
-    const pageSize = 20;
-    let total = 0;
-    let pollTimer = null;
-    const fmt = n => Number(n || 0).toLocaleString();
-    async function api(url, options) {
-      const res = await fetch(url, options);
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
+
+    <!-- 实时进度 -->
+    <div class="card">
+      <h2>当前进度</h2>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <span>状态</span>
+        <span id="imp-badge" class="badge b-pending">idle</span>
+        <span id="imp-batch-id" style="color:#64748b;font-size:.8rem"></span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:.8rem;color:#94a3b8">
+        <span>已处理</span><span id="imp-progress-txt">0</span>
+      </div>
+      <div class="prog-wrap"><div class="prog-bar" id="imp-prog-bar" style="width:0%"></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;font-size:.8rem">
+        <div>患者 <b id="imp-patients">0</b></div>
+        <div>体检记录 <b id="imp-exams">0</b></div>
+        <div>LIS条目 <b id="imp-lis">0</b></div>
+        <div style="color:#f87171">错误 <b id="imp-errors">0</b></div>
+      </div>
+      <div class="log-box" id="imp-log"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ 批次记录 ══════════════════ -->
+<div id="tab-batches" style="display:none">
+  <!-- 批次列表 -->
+  <div id="batch-list-view">
+    <div class="card">
+      <h2>导入批次</h2>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>名称</th><th>类型</th><th>状态</th><th>患者</th>
+            <th>体检</th><th>LIS</th><th>错误</th><th>开始时间</th><th>操作</th></tr></thead>
+          <tbody id="batch-body"></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button id="bl-prev" onclick="batchPage--; loadBatches()" disabled>‹</button>
+        <span id="bl-info">—</span>
+        <button id="bl-next" onclick="batchPage++; loadBatches()" disabled>›</button>
+        <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="loadBatches()">刷新</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 批次详情 -->
+  <div id="batch-detail-view" style="display:none">
+    <span class="detail-back" onclick="showBatchList()">← 返回列表</span>
+    <div class="card" id="batch-detail-info"></div>
+    <div class="card">
+      <h2>患者记录</h2>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>ExamID</th><th>姓名</th><th>性别</th><th>年龄</th><th>体检日期</th>
+            <th>LIS数</th><th>MySQL Patient ID</th><th>状态</th><th>错误</th></tr></thead>
+          <tbody id="batch-records-body"></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button id="br-prev" onclick="batchRecPage--; loadBatchRecords(currentBatchID, batchRecPage)" disabled>‹</button>
+        <span id="br-info">—</span>
+        <button id="br-next" onclick="batchRecPage++; loadBatchRecords(currentBatchID, batchRecPage)" disabled>›</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>运行日志</h2>
+      <div class="log-box" id="batch-log-box"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<script>
+// ────────────────────────────────────────────────────────
+//  状态
+// ────────────────────────────────────────────────────────
+let currentTab = 'overview'
+let previewPage = 1
+let batchPage = 1
+let currentBatchID = 0
+let batchRecPage = 1
+let pollTimer = null
+let activeBatchID = 0
+
+// ────────────────────────────────────────────────────────
+//  工具
+// ────────────────────────────────────────────────────────
+const fmt = n => (n == null ? '—' : Number(n).toLocaleString('zh-CN'))
+const fmtDate = s => s ? s.replace('T',' ').replace(/\.\d+Z/,'') : '—'
+const badge = status => {
+  const map = {running:'b-running',completed:'b-completed',error:'b-error',
+                rolled_back:'b-rolled_back',stopped:'b-stopped'}
+  const cls = map[status] || 'b-pending'
+  return `<span class="badge ${cls}">${status}</span>`
+}
+
+async function api(path, opts) {
+  const r = await fetch('/api' + path, opts)
+  return r.json()
+}
+
+// ────────────────────────────────────────────────────────
+//  标签页
+// ────────────────────────────────────────────────────────
+function switchTab(name) {
+  currentTab = name
+  document.querySelectorAll('.tab').forEach((el, i) => {
+    const tabs = ['overview','preview','import','batches']
+    el.classList.toggle('active', tabs[i] === name)
+  })
+  document.querySelectorAll('[id^="tab-"]').forEach(el => el.style.display='none')
+  document.getElementById('tab-'+name).style.display = ''
+
+  if (name === 'overview') loadOverview()
+  if (name === 'preview') loadPreview(1)
+  if (name === 'batches') { showBatchList(); loadBatches() }
+}
+
+// ────────────────────────────────────────────────────────
+//  概览
+// ────────────────────────────────────────────────────────
+async function loadOverview() {
+  try {
+    const [status, srcStats, scan] = await Promise.all([
+      api('/status'),
+      api('/source/stats').catch(() => null),
+      api('/source/scan-status').catch(() => null),
+    ])
+
+    // 顶栏状态
+    const st = document.getElementById('t-source')
+    st.textContent = status.source_ok ? '数据源 ✓' : '数据源 ✗'
+    st.className = 'pill ' + (status.source_ok ? 'pill-ok' : 'pill-err')
+
+    const mt = document.getElementById('t-mysql')
+    mt.textContent = status.mysql_ok ? 'MySQL ✓' : 'MySQL ✗'
+    mt.className = 'pill ' + (status.mysql_ok ? 'pill-ok' : 'pill-err')
+
+    const at = document.getElementById('t-active')
+    if (status.active_batch) {
+      at.style.display = ''
+      at.textContent = `批次 #${status.active_batch} 运行中`
+    } else {
+      at.style.display = 'none'
     }
-    async function startScan() {
-      try {
-        await api('/api/scan', {method: 'POST'});
-      } catch (err) {
-        // 如果后端已经在扫描，会返回 409；这时直接进入状态轮询。
-        console.warn('scan request:', err.message);
-      }
-      pollStatus();
+    activeBatchID = status.active_batch || 0
+    document.getElementById('btn-stop').disabled = !activeBatchID
+
+    if (srcStats) {
+      document.getElementById('ov-src-patients').textContent = fmt(srcStats.patients)
+      document.getElementById('ov-src-lis').textContent = fmt(srcStats.lis_rows)
+      document.getElementById('ov-src-abnormal').textContent = fmt(srcStats.abnormal_rows)
     }
-    async function pollStatus() {
-      if (pollTimer) {
-        clearTimeout(pollTimer);
-        pollTimer = null;
-      }
-      try {
-        const s = await api('/api/scan/status');
-        document.getElementById('status').textContent = `${s.message} exam=${fmt(s.exam_rows)} lis=${fmt(s.lis_rows)} ${s.current_file || ''}`;
-        renderProgress(s);
-        if (s.running) {
-          pollTimer = setTimeout(pollStatus, 1500);
-        } else {
-          await loadStats();
-          await loadPatients();
-          pollTimer = setTimeout(pollStatus, 5000);
-        }
-      } catch (err) {
-        document.getElementById('status').textContent = `状态刷新失败：${err.message}`;
-        pollTimer = setTimeout(pollStatus, 5000);
-      }
+    if (scan) {
+      document.getElementById('ov-src-examfiles').textContent = scan.exam_files || '—'
+      document.getElementById('ov-scan-msg').textContent =
+        scan.running ? `扫描中… ${scan.current_file} lis入库${fmt(scan.lis_rows)}` : (scan.message || '扫描完成')
     }
-    function renderProgress(s) {
-      const expectedExam = 200000;
-      const expectedLis = 7500000;
-      const examRatio = Math.min(1, (s.exam_rows || 0) / expectedExam);
-      const lisRatio = Math.min(1, (s.lis_rows || 0) / expectedLis);
-      const ratio = s.running ? (examRatio * 0.35 + lisRatio * 0.65) : ((s.exam_rows || 0) || (s.lis_rows || 0) ? 1 : 0);
-      progressFill.style.width = `${Math.round(ratio * 100)}%`;
-      progressText.textContent = `扫描进度：${s.message || '未扫描'}${s.current_file ? ' / ' + s.current_file : ''}`;
-      progressCount.textContent = `exam ${fmt(s.exam_rows || 0)} / lis ${fmt(s.lis_rows || 0)}`;
-      const summary = document.getElementById('scanSummary');
-      if (!s.running && ((s.exam_raw_rows || 0) > 0 || (s.lis_raw_rows || 0) > 0)) {
-        summary.style.display = 'block';
-        summary.innerHTML =
-          `examinfo &nbsp;共计 <b>${s.exam_files || 0}</b> 张表，共 <b>${fmt(s.exam_raw_rows || 0)}</b> 条数据，已入库 <b>${fmt(s.exam_rows || 0)}</b> 条` +
-          `&emsp;|&emsp;` +
-          `lis &nbsp;共计 <b>${s.lis_files || 0}</b> 张表，共 <b>${fmt(s.lis_raw_rows || 0)}</b> 条数据，已入库 <b>${fmt(s.lis_rows || 0)}</b> 条`;
-      } else {
-        summary.style.display = 'none';
-      }
-    }
-    async function loadStats() {
-      const s = await api('/api/stats');
-      patients.textContent = fmt(s.patients);
-      patients_with_lis.textContent = fmt(s.patients_with_lis);
-      lis_rows.textContent = fmt(s.lis_rows);
-      abnormal_rows.textContent = fmt(s.abnormal_rows);
-    }
-    async function loadPatients() {
-      const q = encodeURIComponent(document.getElementById('q').value);
-      const data = await api(`/api/patients?page=${page}&page_size=${pageSize}&q=${q}`);
-      total = data.total || 0;
-      rows.innerHTML = data.items.map(row => `
-        <tr>
-          <td>${row.exam_id}</td><td>${row.name}</td><td>${row.gender}</td><td>${row.birth_date}</td><td>${row.exam_date}</td>
-          <td>${row.left_sbp || row.right_sbp}/${row.left_dbp || row.right_dbp}</td><td>${row.waistline || ''}</td><td>${row.bmi || ''}</td>
-          <td>${fmt(row.lis_count)}</td><td>${fmt(row.abnormal_count)}</td>
-          <td><button class="secondary" onclick="detail('${row.exam_id}')">详情</button></td>
-        </tr>`).join('');
-      renderPager();
-    }
-    function renderPager() {
-      const totalPages = Math.max(1, Math.ceil(total / pageSize));
-      if (page > totalPages) page = totalPages;
-      pageInfo.textContent = `第 ${page} / ${totalPages} 页，共 ${fmt(total)} 条，每页 ${pageSize} 条`;
-      prevBtn.disabled = page <= 1;
-      nextBtn.disabled = page >= totalPages;
-    }
-    function prevPage() {
-      if (page <= 1) return;
-      page -= 1;
-      loadPatients();
-    }
-    function nextPage() {
-      const totalPages = Math.max(1, Math.ceil(total / pageSize));
-      if (page >= totalPages) return;
-      page += 1;
-      loadPatients();
-    }
-    async function detail(id) {
-      detailModal.classList.add('open');
-      detailTitle.textContent = `患者详情 ${id}`;
-      examinfo.textContent = '加载中...';
-      examAllFields.innerHTML = '';
-      examFieldCount.textContent = '';
-      lis.innerHTML = '';
-      lisCount.textContent = '加载中';
-      try {
-        const data = await api(`/api/patients/${id}`);
-        renderExaminfo(data.examinfo || {});
-        renderExamAllFields(data.examinfo || {});
-        renderLis(data.lis || [], data.lis_count || 0);
-      } catch (err) {
-        examinfo.innerHTML = `<div class="error">详情加载失败：${escapeHtml(err.message)}</div>`;
-        lis.innerHTML = '';
-        lisCount.textContent = '加载失败';
-      }
-    }
-    function escapeHtml(value) {
-      return String(value ?? '')
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
-    }
-    function displayValue(value) {
-      if (value === null || value === undefined || value === '') return '-';
-      return escapeHtml(value);
-    }
-    function renderExaminfo(row) {
-      const keys = [
-        ['EXAMINATION_ID', '体检编号'],
-        ['PATIENT_NAME', '姓名'],
-        ['XB', '性别'],
-        ['CSRQ', '出生日期'],
-        ['EXAMINATION_DATE', '体检日期'],
-        ['YLJGDM', '机构代码'],
-        ['LEFT_SBP', '左收缩压'],
-        ['LEFT_DBP', '左舒张压'],
-        ['RIGHT_SBP', '右收缩压'],
-        ['RIGHT_DBP', '右舒张压'],
-        ['WAISTLINE', '腰围'],
-        ['BMI', 'BMI']
-      ];
-      examinfo.innerHTML = keys.map(([key, label]) => `<span>${label}</span><strong>${displayValue(row[key])}</strong>`).join('');
-    }
-    function renderExamAllFields(row) {
-      const entries = Object.entries(row).sort(([a], [b]) => a.localeCompare(b));
-      examFieldCount.textContent = `${fmt(entries.length)} 项`;
-      if (!entries.length) {
-        examAllFields.innerHTML = '<div class="empty">没有 examinfo 字段</div>';
-        return;
-      }
-      examAllFields.innerHTML = entries
-        .map(([key, value]) => `<span>${escapeHtml(key)}</span><span>${displayValue(value)}</span>`)
-        .join('');
-    }
-    function renderLis(items, count) {
-      lisCount.textContent = `${fmt(count || items.length)} 条`;
-      if (!items.length) {
-        lis.innerHTML = '<tr><td colspan="5" class="empty">该患者暂无 LIS 明细，或需要重新扫描生成 lis_records</td></tr>';
-        return;
-      }
-      lis.innerHTML = items.map(item => `
-        <tr>
-          <td>${displayValue(item.JCZBMC)}</td>
-          <td>${displayValue(item.JCZBJG)}</td>
-          <td>${displayValue(item.JLDW)}</td>
-          <td>${displayValue(item.CKZ)}</td>
-          <td>${displayValue(item.YCTS)}</td>
-        </tr>
-      `).join('');
-    }
-    function clearDetail() {
-      closeDetail();
-    }
-    function closeDetail() {
-      detailModal.classList.remove('open');
-      examinfo.textContent = '加载中...';
-      examAllFields.innerHTML = '';
-      examFieldCount.textContent = '';
-      lis.innerHTML = '';
-      lisCount.textContent = '加载中';
-    }
-    loadStats(); loadPatients(); pollStatus();
-  </script>
+
+    document.getElementById('mysql-unavail').style.display = status.mysql_ok ? 'none' : ''
+    if (status.mysql_ok) loadDBStats()
+  } catch(e) { console.error(e) }
+
+  // 最近批次
+  const bl = await api('/batches?page=1').catch(() => null)
+  const tbody = document.getElementById('ov-recent-batches')
+  if (!bl || !bl.items || bl.items.length === 0) {
+    tbody.innerHTML = '<div style="color:#64748b;font-size:.85rem">暂无批次记录</div>'
+  } else {
+    tbody.innerHTML = `<div class="tbl-wrap"><table>
+      <thead><tr><th>ID</th><th>名称</th><th>类型</th><th>状态</th><th>患者</th><th>时间</th></tr></thead>
+      <tbody>${bl.items.slice(0,5).map(b=>`<tr>
+        <td><a href="#" onclick="viewBatch(${b.id})">${b.id}</a></td>
+        <td>${b.name}</td><td>${b.batch_type}</td>
+        <td>${badge(b.status)}</td><td>${fmt(b.actual_patients)}</td>
+        <td>${fmtDate(b.started_at)}</td></tr>`).join('')}
+      </tbody></table></div>`
+  }
+}
+
+async function loadDBStats() {
+  const s = await api('/db/stats').catch(() => null)
+  if (!s || s.error) return
+  document.getElementById('ov-db-patients').textContent = fmt(s.patients)
+  document.getElementById('ov-db-exams').textContent = fmt(s.health_examinations)
+  document.getElementById('ov-db-results').textContent = fmt(s.exam_results)
+  const a = s.assessments || {}
+  document.getElementById('ov-db-fsp').textContent = fmt(a['fsp_risk_assessments_json'])
+  document.getElementById('ov-db-ascvd').textContent = fmt(a['ascvd_risk_assessments_json'])
+  document.getElementById('ov-db-cpar').textContent = fmt(a['china_par_assessments_json'])
+}
+
+// ────────────────────────────────────────────────────────
+//  数据预览
+// ────────────────────────────────────────────────────────
+async function loadPreview(page) {
+  previewPage = page
+  const q = document.getElementById('preview-q').value
+  const list = await api(`/source/patients?page=${page}&page_size=20&q=${encodeURIComponent(q)}`).catch(()=>null)
+  const body = document.getElementById('preview-body')
+  if (!list) { body.innerHTML = '<tr><td colspan="10" style="color:#f87171">加载失败</td></tr>'; return }
+  body.innerHTML = (list.items||[]).map(p => `<tr>
+    <td style="font-family:monospace">${p.exam_id}</td>
+    <td>${p.name}</td><td>${p.gender}</td><td>${p.birth_date||'—'}</td><td>${p.exam_date||'—'}</td>
+    <td>${p.left_sbp||'—'}</td><td>${p.waistline||'—'}</td><td>${p.bmi||'—'}</td>
+    <td>${p.lis_count}</td><td>${p.abnormal_count}</td></tr>`).join('') ||
+    '<tr><td colspan="10" style="text-align:center;color:#64748b">无数据</td></tr>'
+
+  const total = list.total || 0
+  const totalPages = Math.ceil(total / 20) || 1
+  document.getElementById('prev-info').textContent = `第 ${page}/${totalPages} 页，共 ${fmt(total)} 条`
+  document.getElementById('prev-prev').disabled = page <= 1
+  document.getElementById('prev-next').disabled = page >= totalPages
+}
+
+// ────────────────────────────────────────────────────────
+//  导入控制
+// ────────────────────────────────────────────────────────
+async function startImport(batchType) {
+  const offset = parseInt(document.getElementById('custom-offset').value) || 0
+  const limit  = parseInt(document.getElementById('custom-limit').value) || 50
+  const body = { batch_type: batchType }
+  if (batchType === 'custom') {
+    body.limit = limit
+    body.offset = offset
+  }
+
+  const r = await api('/import/start', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  }).catch(e => ({error: e.message}))
+
+  if (r.error) { alert('启动失败: ' + r.error); return }
+
+  activeBatchID = r.batch_id
+  resetImportLog()
+  startImportPoll(r.batch_id)
+  document.getElementById('btn-stop').disabled = false
+  document.getElementById('imp-batch-id').textContent = `批次 #${r.batch_id}`
+}
+
+async function stopImport() {
+  await api('/import/stop', {method:'POST'})
+}
+
+function resetImportLog() {
+  document.getElementById('imp-log').innerHTML = ''
+  document.getElementById('imp-patients').textContent = '0'
+  document.getElementById('imp-exams').textContent = '0'
+  document.getElementById('imp-lis').textContent = '0'
+  document.getElementById('imp-errors').textContent = '0'
+  document.getElementById('imp-prog-bar').style.width = '0%'
+  document.getElementById('imp-progress-txt').textContent = '0'
+}
+
+function startImportPoll(batchID) {
+  if (pollTimer) clearInterval(pollTimer)
+  pollTimer = setInterval(() => pollBatch(batchID), 1500)
+  pollBatch(batchID)
+}
+
+let lastLogCount = 0
+
+async function pollBatch(batchID) {
+  const d = await api(`/batches/${batchID}`).catch(() => null)
+  if (!d) return
+
+  const b = d.batch
+  document.getElementById('imp-badge').className = `badge b-${b.status}`
+  document.getElementById('imp-badge').textContent = b.status
+  document.getElementById('imp-patients').textContent = b.actual_patients || 0
+  document.getElementById('imp-exams').textContent = b.actual_exams || 0
+  document.getElementById('imp-lis').textContent = b.actual_lis || 0
+  document.getElementById('imp-errors').textContent = b.actual_errors || 0
+
+  const reqN = b.requested_count || 1
+  const doneN = b.actual_patients || 0
+  const pct = Math.min(100, Math.round(doneN / reqN * 100))
+  document.getElementById('imp-prog-bar').style.width = pct + '%'
+  document.getElementById('imp-progress-txt').textContent = `${fmt(doneN)} / ${fmt(reqN)}`
+
+  // 日志追加
+  const logs = d.logs || []
+  const logBox = document.getElementById('imp-log')
+  if (logs.length > lastLogCount) {
+    logs.slice(lastLogCount).forEach(l => {
+      const div = document.createElement('div')
+      div.className = l.level === 'error' ? 'le' : l.level === 'warn' ? 'lw' : ''
+      div.textContent = `${fmtDate(l.created_at)} ${l.message}`
+      logBox.appendChild(div)
+    })
+    logBox.scrollTop = logBox.scrollHeight
+    lastLogCount = logs.length
+  }
+
+  const running = b.status === 'running'
+  document.getElementById('btn-stop').disabled = !running
+  if (!running && pollTimer) {
+    clearInterval(pollTimer); pollTimer = null
+    activeBatchID = 0
+    loadOverview()
+    lastLogCount = 0
+  }
+}
+
+// ────────────────────────────────────────────────────────
+//  批次列表
+// ────────────────────────────────────────────────────────
+async function loadBatches() {
+  const d = await api(`/batches?page=${batchPage}`).catch(() => null)
+  if (!d) return
+  const tbody = document.getElementById('batch-body')
+  tbody.innerHTML = (d.items||[]).map(b => `<tr>
+    <td><a href="#" onclick="viewBatch(${b.id})">${b.id}</a></td>
+    <td>${b.name}</td><td>${b.batch_type}</td>
+    <td>${badge(b.status)}</td>
+    <td>${fmt(b.actual_patients)}</td><td>${fmt(b.actual_exams)}</td>
+    <td>${fmt(b.actual_lis)}</td><td style="color:#f87171">${b.actual_errors||0}</td>
+    <td>${fmtDate(b.started_at)}</td>
+    <td>${
+      (b.status !== 'rolled_back' && b.status !== 'running')
+      ? `<button class="btn btn-danger btn-sm" onclick="rollback(${b.id},event)">撤销</button>`
+      : (b.status === 'rolled_back' ? '<span style="color:#9ca3af;font-size:.75rem">已撤销</span>' : '')
+    }</td></tr>`).join('') ||
+    '<tr><td colspan="10" style="text-align:center;color:#64748b">暂无记录</td></tr>'
+
+  const total = d.total || 0
+  const totalPages = Math.ceil(total / 30) || 1
+  document.getElementById('bl-info').textContent = `第 ${batchPage}/${totalPages} 页，共 ${fmt(total)} 条`
+  document.getElementById('bl-prev').disabled = batchPage <= 1
+  document.getElementById('bl-next').disabled = batchPage >= totalPages
+}
+
+function showBatchList() {
+  document.getElementById('batch-list-view').style.display = ''
+  document.getElementById('batch-detail-view').style.display = 'none'
+}
+
+function viewBatch(id) {
+  currentBatchID = id
+  batchRecPage = 1
+  lastLogCount = 0
+  document.getElementById('batch-list-view').style.display = 'none'
+  document.getElementById('batch-detail-view').style.display = ''
+  switchTab('batches')
+  loadBatchDetail(id)
+}
+
+async function loadBatchDetail(id) {
+  const d = await api(`/batches/${id}?page=${batchRecPage}`).catch(() => null)
+  if (!d) return
+  const b = d.batch
+
+  document.getElementById('batch-detail-info').innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <h2 style="margin:0">批次 #${b.id}：${b.name}</h2>
+      ${badge(b.status)}
+      ${b.status !== 'rolled_back' && b.status !== 'running'
+        ? `<button class="btn btn-danger btn-sm" onclick="rollback(${b.id})">撤销此批次</button>`
+        : ''}
+    </div>
+    <div class="stat-grid">
+      <div class="stat-box"><div class="sv">${b.batch_type}</div><div class="sl">类型</div></div>
+      <div class="stat-box"><div class="sv">${fmt(b.requested_count)}</div><div class="sl">请求数量</div></div>
+      <div class="stat-box"><div class="sv">${fmt(b.actual_patients)}</div><div class="sl">成功患者</div></div>
+      <div class="stat-box"><div class="sv">${fmt(b.actual_exams)}</div><div class="sl">体检记录</div></div>
+      <div class="stat-box"><div class="sv">${fmt(b.actual_lis)}</div><div class="sl">LIS条目</div></div>
+      <div class="stat-box" style="color:#f87171"><div class="sv">${b.actual_errors||0}</div><div class="sl">错误</div></div>
+    </div>
+    <div style="margin-top:10px;font-size:.8rem;color:#64748b">
+      开始：${fmtDate(b.started_at)}　
+      结束：${fmtDate(b.finished_at)}　
+      ${b.rolled_back_at ? '撤销：'+fmtDate(b.rolled_back_at) : ''}　
+      <span style="color:#fb923c">${b.error_summary||''}</span>
+    </div>`
+
+  loadBatchRecords(id, batchRecPage)
+
+  const logs = d.logs || []
+  const logBox = document.getElementById('batch-log-box')
+  logBox.innerHTML = logs.map(l =>
+    `<div class="${l.level==='error'?'le':l.level==='warn'?'lw':''}">${fmtDate(l.created_at)} ${l.message}</div>`
+  ).join('')
+  logBox.scrollTop = logBox.scrollHeight
+}
+
+function loadBatchRecords(id, page) {
+  api(`/batches/${id}?page=${page}`).then(d => {
+    if (!d || !d.records) return
+    const recs = d.records
+    const tbody = document.getElementById('batch-records-body')
+    tbody.innerHTML = (recs.items||[]).map(r => `<tr>
+      <td style="font-family:monospace;font-size:.78rem">${r.exam_id}</td>
+      <td>${r.patient_name||'—'}</td><td>${r.patient_gender||'—'}</td>
+      <td>${r.patient_age||'—'}</td><td>${r.exam_date||'—'}</td>
+      <td>${r.lis_count}</td>
+      <td style="font-family:monospace">${r.mysql_patient_id||'—'}</td>
+      <td>${badge(r.status)}</td>
+      <td style="color:#f87171;font-size:.78rem">${r.error_msg||''}</td></tr>`).join('') ||
+      '<tr><td colspan="9" style="text-align:center;color:#64748b">无数据</td></tr>'
+
+    const total = recs.total || 0
+    const totalPages = Math.ceil(total / 50) || 1
+    document.getElementById('br-info').textContent = `第 ${page}/${totalPages} 页，共 ${fmt(total)} 条`
+    document.getElementById('br-prev').disabled = page <= 1
+    document.getElementById('br-next').disabled = page >= totalPages
+  })
+}
+
+// ────────────────────────────────────────────────────────
+//  撤销
+// ────────────────────────────────────────────────────────
+async function rollback(batchID, evt) {
+  if (evt) evt.stopPropagation()
+  if (!confirm(`确认撤销批次 #${batchID}？\n\n这将删除该批次导入的所有患者数据（含体检记录、LIS、评估数据），此操作不可恢复。`)) return
+
+  const r = await api(`/batches/${batchID}/rollback`, {method:'POST'}).catch(e=>({error:e.message}))
+  if (r.error) {
+    alert('撤销失败: ' + r.error)
+    return
+  }
+  const rows = Object.entries(r.deleted_rows || {}).map(([t,n])=>`${t}: ${n} 行`).join('\n')
+  alert(`✅ 撤销成功！\n删除患者：${r.patient_ids.length} 人\n\n${rows}`)
+  loadBatches()
+  loadOverview()
+  if (currentBatchID === batchID) loadBatchDetail(batchID)
+}
+
+// ────────────────────────────────────────────────────────
+//  初始化
+// ────────────────────────────────────────────────────────
+loadOverview()
+setInterval(loadOverview, 30000) // 每 30 秒自动刷新概览
+</script>
 </body>
 </html>

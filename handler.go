@@ -1,189 +1,199 @@
 package main
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"log"
 	"net/http"
-	"strings"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
-func (a *App) handleScan(c *gin.Context) {
-	a.mu.Lock()
-	if a.status.Running {
-		a.mu.Unlock()
-		c.JSON(http.StatusConflict, gin.H{"error": "扫描正在进行"})
-		return
-	}
-	a.status = &ScanStatus{Running: true, StartedAt: time.Now(), Message: "准备扫描"}
-	a.mu.Unlock()
-
-	go func() {
-		if err := a.scanAll(); err != nil {
-			a.mu.Lock()
-			a.status.Running = false
-			a.status.FinishedAt = time.Now()
-			a.status.ErrorMessage = err.Error()
-			a.status.Message = "扫描失败"
-			a.mu.Unlock()
-			log.Printf("scan failed: %v", err)
-			return
-		}
-		a.mu.Lock()
-		a.status.Running = false
-		a.status.FinishedAt = time.Now()
-		a.status.Message = fmt.Sprintf(
-			"扫描完成 | examinfo 共计%d张表，共%d条数据，已入库%d条 | lis 共计%d张表，共%d条数据，已入库%d条",
-			a.status.ExamFiles, a.status.ExamRawRows, a.status.ExamRows,
-			a.status.LisFiles, a.status.LisRawRows, a.status.LisRows,
-		)
-		a.mu.Unlock()
-	}()
-	c.JSON(http.StatusAccepted, a.status)
+// GET /  → index.html
+func (a *App) handleIndex(c *gin.Context) {
+	c.HTML(http.StatusOK, "index.html", gin.H{"title": "数据导入工具"})
 }
 
-func (a *App) handleScanStatus(c *gin.Context) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	c.JSON(http.StatusOK, a.status)
-}
+// GET /api/status  —— 服务整体状态
+func (a *App) handleStatus(c *gin.Context) {
+	mysqlOK := a.importer.MySQLAvailable()
+	sourceOK := a.importer.source.Health()
 
-func (a *App) handleStats(c *gin.Context) {
-	var patientCount, lisLinked, lisRows, abnormalRows int64
-	_ = a.db.Model(&Patient{}).Count(&patientCount).Error
-	_ = a.db.Model(&LISSummary{}).Where("lis_count > ?", 0).Count(&lisLinked).Error
-	var summaries []LISSummary
-	_ = a.db.Find(&summaries).Error
-	for _, item := range summaries {
-		lisRows += int64(item.LisCount)
-		abnormalRows += int64(item.AbnormalCount)
-	}
 	c.JSON(http.StatusOK, gin.H{
-		"patients":          patientCount,
-		"patients_with_lis": lisLinked,
-		"lis_rows":          lisRows,
-		"abnormal_rows":     abnormalRows,
-		"data_dir":          a.dataDir,
+		"mysql_ok":     mysqlOK,
+		"source_ok":    sourceOK,
+		"source_url":   a.importer.source.BaseURL,
+		"active_batch": a.importer.ActiveBatchID(),
+		"time":         time.Now().Format(time.RFC3339),
 	})
 }
 
-func (a *App) handlePatients(c *gin.Context) {
-	page := positiveInt(c.Query("page"), 1)
-	pageSize := clamp(positiveInt(c.Query("page_size"), 50), 1, 500)
-	q := strings.TrimSpace(c.Query("q"))
-	offset := (page - 1) * pageSize
-
-	query := a.db.Model(&Patient{})
-	if q != "" {
-		like := "%" + q + "%"
-		query = query.Where("exam_id LIKE ? OR name LIKE ?", like, like)
+// GET /api/source/stats
+func (a *App) handleSourceStats(c *gin.Context) {
+	stats, err := a.importer.source.Stats()
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
 	}
+	c.JSON(http.StatusOK, stats)
+}
+
+// GET /api/source/scan-status
+func (a *App) handleSourceScanStatus(c *gin.Context) {
+	s, err := a.importer.source.ScanStatus()
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, s)
+}
+
+// GET /api/source/patients?page=1&page_size=20&q=
+func (a *App) handleSourcePatients(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	q := c.Query("q")
+	list, err := a.importer.source.Patients(page, pageSize, q)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, list)
+}
+
+// POST /api/import/start
+// body: { "batch_type":"test_1|test_10|test_100|full|custom", "limit":N, "offset":0, "name":"", "notes":"" }
+func (a *App) handleImportStart(c *gin.Context) {
+	var req struct {
+		BatchType string `json:"batch_type"`
+		Limit     int    `json:"limit"`
+		Offset    int    `json:"offset"`
+		Name      string `json:"name"`
+		Notes     string `json:"notes"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 推导 limit
+	switch req.BatchType {
+	case "test_1":
+		req.Limit = 1
+	case "test_10":
+		req.Limit = 10
+	case "test_100":
+		req.Limit = 100
+	case "full":
+		req.Limit = 999999
+	}
+	if req.Limit <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "limit 必须 > 0"})
+		return
+	}
+
+	batchID, err := a.importer.StartBatch(BatchConfig{
+		BatchType: req.BatchType,
+		Limit:     req.Limit,
+		Offset:    req.Offset,
+		Name:      req.Name,
+		Notes:     req.Notes,
+	})
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusAccepted, gin.H{"batch_id": batchID, "message": "导入已启动"})
+}
+
+// POST /api/import/stop
+func (a *App) handleImportStop(c *gin.Context) {
+	a.importer.StopActive()
+	c.JSON(http.StatusOK, gin.H{"message": "停止信号已发送"})
+}
+
+// GET /api/batches?page=1
+func (a *App) handleBatches(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if page < 1 {
+		page = 1
+	}
+	var batches []ImportBatch
+	a.sqlite.Order("id desc").Limit(30).Offset((page - 1) * 30).Find(&batches)
 	var total int64
-	if err := query.Count(&total).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	var patients []Patient
-	if err := query.Order("exam_id").Limit(pageSize).Offset(offset).Find(&patients).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	examIDs := make([]string, 0, len(patients))
-	for _, patient := range patients {
-		examIDs = append(examIDs, patient.ExamID)
-	}
-	summaryMap := map[string]LISSummary{}
-	if len(examIDs) > 0 {
-		var summaries []LISSummary
-		if err := a.db.Where("exam_id IN ?", examIDs).Find(&summaries).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		for _, summary := range summaries {
-			summaryMap[summary.ExamID] = summary
-		}
-	}
-	items := []PatientListItem{}
-	for _, patient := range patients {
-		summary := summaryMap[patient.ExamID]
-		items = append(items, PatientListItem{
-			ExamID:         patient.ExamID,
-			YLJGDM:         patient.YLJGDM,
-			Name:           patient.Name,
-			Gender:         patient.Gender,
-			BirthDate:      patient.BirthDate,
-			ExamDate:       patient.ExamDate,
-			LeftSBP:        patient.LeftSBP,
-			LeftDBP:        patient.LeftDBP,
-			RightSBP:       patient.RightSBP,
-			RightDBP:       patient.RightDBP,
-			Waistline:      patient.Waistline,
-			BMI:            patient.BMI,
-			LisCount:       summary.LisCount,
-			AbnormalCount:  summary.AbnormalCount,
-			ExamSourceFile: patient.ExamSourceFile,
-			FirstLisFile:   summary.FirstFile,
-			LastLisFile:    summary.LastFile,
-		})
-	}
-	c.JSON(http.StatusOK, gin.H{"page": page, "page_size": pageSize, "total": total, "items": items})
+	a.sqlite.Model(&ImportBatch{}).Count(&total)
+	c.JSON(http.StatusOK, gin.H{"total": total, "page": page, "items": batches})
 }
 
-func (a *App) handlePatientDetail(c *gin.Context) {
-	examID := c.Param("examID")
-	patient, err := a.getPatientRaw(examID)
+// GET /api/batches/:id
+func (a *App) handleBatchDetail(c *gin.Context) {
+	idStr := c.Param("id")
+	id, _ := strconv.ParseInt(idStr, 10, 64)
+	var batch ImportBatch
+	if err := a.sqlite.First(&batch, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "批次不存在"})
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize := 50
+	var records []ImportBatchRecord
+	a.sqlite.Where("batch_id = ?", id).
+		Order("id asc").Limit(pageSize).Offset((page - 1) * pageSize).
+		Find(&records)
+	var recTotal int64
+	a.sqlite.Model(&ImportBatchRecord{}).Where("batch_id = ?", id).Count(&recTotal)
+
+	var logs []ImportBatchLog
+	a.sqlite.Where("batch_id = ?", id).Order("id asc").Limit(200).Find(&logs)
+
+	c.JSON(http.StatusOK, gin.H{
+		"batch":   batch,
+		"records": gin.H{"total": recTotal, "page": page, "items": records},
+		"logs":    logs,
+	})
+}
+
+// POST /api/batches/:id/rollback
+func (a *App) handleRollback(c *gin.Context) {
+	idStr := c.Param("id")
+	id, _ := strconv.ParseInt(idStr, 10, 64)
+	result, err := a.importer.Rollback(id)
 	if err != nil {
-		status := http.StatusInternalServerError
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			status = http.StatusNotFound
-		}
-		c.JSON(status, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	lis, err := a.findLisRows(examID, 5000)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"examinfo": patient, "lis": lis, "lis_count": len(lis)})
+	c.JSON(http.StatusOK, result)
 }
 
-func (a *App) handleStrokePatient(c *gin.Context) {
-	a.handlePatientDetail(c)
-}
-
-func (a *App) handleStrokeBatch(c *gin.Context) {
-	limit := clamp(positiveInt(c.Query("limit"), 50), 1, 200)
-	offset := positiveInt(c.Query("offset"), 0)
-
-	var patients []Patient
-	if err := a.db.Order("exam_id").Limit(limit).Offset(offset).Find(&patients).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+// GET /api/db/stats  —— MySQL 已入库统计
+func (a *App) handleDBStats(c *gin.Context) {
+	if !a.importer.MySQLAvailable() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "MySQL 不可用"})
 		return
 	}
+	var pCount, examCount, resultCount int64
+	a.importer.mysql.Model(&DBPatient{}).Count(&pCount)
+	a.importer.mysql.Model(&DBHealthExamination{}).Count(&examCount)
+	a.importer.mysql.Model(&DBExamResult{}).Count(&resultCount)
 
-	examinfo := []map[string]any{}
-	examIDs := []string{}
-	for _, patient := range patients {
-		var m map[string]any
-		if err := json.Unmarshal([]byte(patient.RawJSON), &m); err == nil {
-			examIDs = append(examIDs, patient.ExamID)
-			examinfo = append(examinfo, m)
-		}
+	// 评估数量
+	assessCounts := map[string]int64{}
+	for _, t := range []string{"fsp_risk_assessments_json", "ascvd_risk_assessments_json", "china_par_assessments_json"} {
+		var cnt int64
+		a.importer.mysql.Raw("SELECT COUNT(*) FROM `"+t+"`").Scan(&cnt)
+		assessCounts[t] = cnt
 	}
-	lis := []map[string]any{}
-	for _, id := range examIDs {
-		rows, err := a.findLisRows(id, 100)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		lis = append(lis, rows...)
-	}
-	c.JSON(http.StatusOK, gin.H{"metadata": gin.H{"limit": limit, "offset": offset, "examinfo_count": len(examinfo), "lis_count": len(lis)}, "examinfo": examinfo, "lis": lis})
+
+	c.JSON(http.StatusOK, gin.H{
+		"patients":            pCount,
+		"health_examinations": examCount,
+		"exam_results":        resultCount,
+		"assessments":         assessCounts,
+	})
 }

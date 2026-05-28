@@ -10,16 +10,29 @@ import (
 func (a *App) registerRoutes(r *gin.Engine) {
 	tmpl := template.Must(template.ParseFS(embeddedFiles, "templates/index.html"))
 	r.SetHTMLTemplate(tmpl)
-	r.GET("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "index.html", gin.H{"title": "Examinfo/LIS 数据浏览"})
-	})
+
+	r.GET("/", a.handleIndex)
 	r.GET("/favicon.ico", func(c *gin.Context) { c.Status(http.StatusNoContent) })
-	r.GET("/api/health", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) })
-	r.POST("/api/scan", a.handleScan)
-	r.GET("/api/scan/status", a.handleScanStatus)
-	r.GET("/api/stats", a.handleStats)
-	r.GET("/api/patients", a.handlePatients)
-	r.GET("/api/patients/:examID", a.handlePatientDetail)
-	r.GET("/api/stroke/batch", a.handleStrokeBatch)
-	r.GET("/api/stroke/patient/:examID", a.handleStrokePatient)
+
+	api := r.Group("/api")
+	{
+		api.GET("/status", a.handleStatus)
+
+		// 数据源
+		api.GET("/source/stats", a.handleSourceStats)
+		api.GET("/source/scan-status", a.handleSourceScanStatus)
+		api.GET("/source/patients", a.handleSourcePatients)
+
+		// 导入控制
+		api.POST("/import/start", a.handleImportStart)
+		api.POST("/import/stop", a.handleImportStop)
+
+		// 批次管理（从 SQLite 读，无需 MySQL）
+		api.GET("/batches", a.handleBatches)
+		api.GET("/batches/:id", a.handleBatchDetail)
+		api.POST("/batches/:id/rollback", a.handleRollback)
+
+		// MySQL 统计
+		api.GET("/db/stats", a.handleDBStats)
+	}
 }
