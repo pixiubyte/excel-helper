@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Examinfo/LIS 数据浏览</title>
+  <style>
+    :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; background: #f6f7f9; color: #17202a; }
+    header { background: #184d47; color: #fff; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; }
+    h1 { margin: 0; font-size: 20px; letter-spacing: 0; }
+    main { padding: 20px 24px 32px; }
+    .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+    .progress-wrap { background: white; border: 1px solid #e1e6ef; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+    .progress-meta { display: flex; justify-content: space-between; gap: 12px; color: #475467; font-size: 13px; margin-bottom: 8px; }
+    .progress-bar { height: 10px; background: #edf1f5; border-radius: 999px; overflow: hidden; }
+    .progress-fill { height: 100%; width: 0%; background: #16a34a; transition: width .25s ease; }
+    .pager { display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin: 12px 0; color: #475467; font-size: 13px; }
+    button { border: 0; background: #2563eb; color: white; padding: 9px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    button.secondary { background: #eef2f7; color: #1f2937; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    input { padding: 9px 10px; border: 1px solid #cfd7e3; border-radius: 6px; min-width: 260px; }
+    .cards { display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .card { background: white; border: 1px solid #e1e6ef; border-radius: 8px; padding: 14px; }
+    .card .label { color: #667085; font-size: 12px; }
+    .card .value { font-size: 24px; font-weight: 700; margin-top: 6px; }
+    table { width: 100%; border-collapse: collapse; background: white; border: 1px solid #e1e6ef; border-radius: 8px; overflow: hidden; }
+    th, td { padding: 10px 9px; border-bottom: 1px solid #edf1f5; font-size: 13px; text-align: left; white-space: nowrap; }
+    th { background: #f0f4f8; color: #344054; }
+    tr:hover td { background: #f8fbff; }
+    .status { color: #475467; font-size: 13px; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .52); display: none; align-items: center; justify-content: center; padding: 24px; z-index: 20; }
+    .modal-backdrop.open { display: flex; }
+    .modal { width: min(1120px, 96vw); max-height: 88vh; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 24px 80px rgba(15, 23, 42, .28); display: flex; flex-direction: column; }
+    .modal-title { padding: 14px 16px; background: #184d47; color: white; display: flex; align-items: center; justify-content: space-between; }
+    .modal-title h2 { margin: 0; font-size: 16px; }
+    .modal-body { padding: 14px; overflow: auto; display: grid; grid-template-columns: 360px 1fr; gap: 12px; }
+    .detail-card { background: white; border: 1px solid #e1e6ef; border-radius: 8px; overflow: hidden; }
+    .detail-head { padding: 10px 12px; background: #f0f4f8; font-weight: 700; color: #344054; display: flex; justify-content: space-between; align-items: center; }
+    .kv { display: grid; grid-template-columns: 120px 1fr; gap: 6px 10px; padding: 12px; font-size: 13px; }
+    .kv span:nth-child(odd) { color: #667085; }
+    .field-grid { display: grid; grid-template-columns: 150px 1fr; gap: 0; max-height: 420px; overflow: auto; font-size: 12px; }
+    .field-grid span { padding: 7px 9px; border-bottom: 1px solid #edf1f5; word-break: break-all; white-space: normal; }
+    .field-grid span:nth-child(4n+1), .field-grid span:nth-child(4n+2) { background: #fbfcfe; }
+    .field-grid span:nth-child(odd) { color: #667085; font-weight: 600; }
+    .empty { padding: 18px; color: #667085; font-size: 13px; }
+    .error { padding: 12px; color: #b42318; background: #fff4f2; border: 1px solid #ffd5cf; border-radius: 8px; font-size: 13px; }
+    .mini-table { max-height: 420px; overflow: auto; }
+    pre { margin: 0; padding: 12px; background: #101828; color: #e5e7eb; overflow: auto; max-height: 420px; border-radius: 8px; font-size: 12px; }
+    @media (max-width: 900px) { .cards, .modal-body { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Examinfo/LIS 数据浏览</h1>
+    <div class="status" id="status">未扫描</div>
+  </header>
+  <main>
+    <div class="toolbar">
+      <button onclick="startScan()">扫描 Excel</button>
+      <button class="secondary" onclick="loadStats(); loadPatients()">刷新</button>
+      <input id="q" placeholder="搜索 EXAMINATION_ID 或姓名" onkeydown="if(event.key==='Enter') loadPatients()" />
+      <button class="secondary" onclick="loadPatients()">查询</button>
+    </div>
+    <section class="progress-wrap">
+      <div class="progress-meta">
+        <span id="progressText">扫描进度：未扫描</span>
+        <span id="progressCount">exam 0 / lis 0</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div id="scanSummary" style="display:none; margin-top:8px; font-size:13px; color:#344054; line-height:1.6;"></div>
+    </section>
+
+    <section class="cards">
+      <div class="card"><div class="label">患者数</div><div class="value" id="patients">-</div></div>
+      <div class="card"><div class="label">有 LIS 患者</div><div class="value" id="patients_with_lis">-</div></div>
+      <div class="card"><div class="label">LIS 明细</div><div class="value" id="lis_rows">-</div></div>
+      <div class="card"><div class="label">异常明细</div><div class="value" id="abnormal_rows">-</div></div>
+    </section>
+
+    <table>
+      <thead>
+        <tr>
+          <th>EXAMINATION_ID</th><th>姓名</th><th>性别</th><th>出生日期</th><th>体检日期</th>
+          <th>血压</th><th>腰围</th><th>BMI</th><th>LIS</th><th>异常</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="pager">
+      <button class="secondary" id="prevBtn" onclick="prevPage()">上一页</button>
+      <span id="pageInfo">第 1 页</span>
+      <button class="secondary" id="nextBtn" onclick="nextPage()">下一页</button>
+    </div>
+
+    <div class="modal-backdrop" id="detailModal" onclick="if(event.target===detailModal) closeDetail()">
+      <div class="modal">
+        <div class="modal-title">
+          <h2 id="detailTitle">患者详情</h2>
+          <button class="secondary" onclick="closeDetail()">关闭</button>
+        </div>
+        <div class="modal-body">
+          <section class="detail-card">
+            <div class="detail-head"><span>患者摘要</span></div>
+            <div class="kv" id="examinfo">加载中...</div>
+            <div class="detail-head"><span>Examinfo 全字段</span><span id="examFieldCount"></span></div>
+            <div class="field-grid" id="examAllFields"></div>
+          </section>
+          <section class="detail-card">
+            <div class="detail-head"><span>LIS 明细</span><span id="lisCount">加载中</span></div>
+            <div class="mini-table">
+              <table>
+                <thead><tr><th>项目</th><th>结果</th><th>单位</th><th>参考值</th><th>异常</th></tr></thead>
+                <tbody id="lis"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script>
+    let page = 1;
+    const pageSize = 20;
+    let total = 0;
+    let pollTimer = null;
+    const fmt = n => Number(n || 0).toLocaleString();
+    async function api(url, options) {
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+    async function startScan() {
+      try {
+        await api('/api/scan', {method: 'POST'});
+      } catch (err) {
+        // 如果后端已经在扫描，会返回 409；这时直接进入状态轮询。
+        console.warn('scan request:', err.message);
+      }
+      pollStatus();
+    }
+    async function pollStatus() {
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+        pollTimer = null;
+      }
+      try {
+        const s = await api('/api/scan/status');
+        document.getElementById('status').textContent = `${s.message} exam=${fmt(s.exam_rows)} lis=${fmt(s.lis_rows)} ${s.current_file || ''}`;
+        renderProgress(s);
+        if (s.running) {
+          pollTimer = setTimeout(pollStatus, 1500);
+        } else {
+          await loadStats();
+          await loadPatients();
+          pollTimer = setTimeout(pollStatus, 5000);
+        }
+      } catch (err) {
+        document.getElementById('status').textContent = `状态刷新失败：${err.message}`;
+        pollTimer = setTimeout(pollStatus, 5000);
+      }
+    }
+    function renderProgress(s) {
+      const expectedExam = 200000;
+      const expectedLis = 7500000;
+      const examRatio = Math.min(1, (s.exam_rows || 0) / expectedExam);
+      const lisRatio = Math.min(1, (s.lis_rows || 0) / expectedLis);
+      const ratio = s.running ? (examRatio * 0.35 + lisRatio * 0.65) : ((s.exam_rows || 0) || (s.lis_rows || 0) ? 1 : 0);
+      progressFill.style.width = `${Math.round(ratio * 100)}%`;
+      progressText.textContent = `扫描进度：${s.message || '未扫描'}${s.current_file ? ' / ' + s.current_file : ''}`;
+      progressCount.textContent = `exam ${fmt(s.exam_rows || 0)} / lis ${fmt(s.lis_rows || 0)}`;
+      const summary = document.getElementById('scanSummary');
+      if (!s.running && ((s.exam_raw_rows || 0) > 0 || (s.lis_raw_rows || 0) > 0)) {
+        summary.style.display = 'block';
+        summary.innerHTML =
+          `examinfo &nbsp;共计 <b>${s.exam_files || 0}</b> 张表，共 <b>${fmt(s.exam_raw_rows || 0)}</b> 条数据，已入库 <b>${fmt(s.exam_rows || 0)}</b> 条` +
+          `&emsp;|&emsp;` +
+          `lis &nbsp;共计 <b>${s.lis_files || 0}</b> 张表，共 <b>${fmt(s.lis_raw_rows || 0)}</b> 条数据，已入库 <b>${fmt(s.lis_rows || 0)}</b> 条`;
+      } else {
+        summary.style.display = 'none';
+      }
+    }
+    async function loadStats() {
+      const s = await api('/api/stats');
+      patients.textContent = fmt(s.patients);
+      patients_with_lis.textContent = fmt(s.patients_with_lis);
+      lis_rows.textContent = fmt(s.lis_rows);
+      abnormal_rows.textContent = fmt(s.abnormal_rows);
+    }
+    async function loadPatients() {
+      const q = encodeURIComponent(document.getElementById('q').value);
+      const data = await api(`/api/patients?page=${page}&page_size=${pageSize}&q=${q}`);
+      total = data.total || 0;
+      rows.innerHTML = data.items.map(row => `
+        <tr>
+          <td>${row.exam_id}</td><td>${row.name}</td><td>${row.gender}</td><td>${row.birth_date}</td><td>${row.exam_date}</td>
+          <td>${row.left_sbp || row.right_sbp}/${row.left_dbp || row.right_dbp}</td><td>${row.waistline || ''}</td><td>${row.bmi || ''}</td>
+          <td>${fmt(row.lis_count)}</td><td>${fmt(row.abnormal_count)}</td>
+          <td><button class="secondary" onclick="detail('${row.exam_id}')">详情</button></td>
+        </tr>`).join('');
+      renderPager();
+    }
+    function renderPager() {
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      if (page > totalPages) page = totalPages;
+      pageInfo.textContent = `第 ${page} / ${totalPages} 页，共 ${fmt(total)} 条，每页 ${pageSize} 条`;
+      prevBtn.disabled = page <= 1;
+      nextBtn.disabled = page >= totalPages;
+    }
+    function prevPage() {
+      if (page <= 1) return;
+      page -= 1;
+      loadPatients();
+    }
+    function nextPage() {
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      if (page >= totalPages) return;
+      page += 1;
+      loadPatients();
+    }
+    async function detail(id) {
+      detailModal.classList.add('open');
+      detailTitle.textContent = `患者详情 ${id}`;
+      examinfo.textContent = '加载中...';
+      examAllFields.innerHTML = '';
+      examFieldCount.textContent = '';
+      lis.innerHTML = '';
+      lisCount.textContent = '加载中';
+      try {
+        const data = await api(`/api/patients/${id}`);
+        renderExaminfo(data.examinfo || {});
+        renderExamAllFields(data.examinfo || {});
+        renderLis(data.lis || [], data.lis_count || 0);
+      } catch (err) {
+        examinfo.innerHTML = `<div class="error">详情加载失败：${escapeHtml(err.message)}</div>`;
+        lis.innerHTML = '';
+        lisCount.textContent = '加载失败';
+      }
+    }
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+    function displayValue(value) {
+      if (value === null || value === undefined || value === '') return '-';
+      return escapeHtml(value);
+    }
+    function renderExaminfo(row) {
+      const keys = [
+        ['EXAMINATION_ID', '体检编号'],
+        ['PATIENT_NAME', '姓名'],
+        ['XB', '性别'],
+        ['CSRQ', '出生日期'],
+        ['EXAMINATION_DATE', '体检日期'],
+        ['YLJGDM', '机构代码'],
+        ['LEFT_SBP', '左收缩压'],
+        ['LEFT_DBP', '左舒张压'],
+        ['RIGHT_SBP', '右收缩压'],
+        ['RIGHT_DBP', '右舒张压'],
+        ['WAISTLINE', '腰围'],
+        ['BMI', 'BMI']
+      ];
+      examinfo.innerHTML = keys.map(([key, label]) => `<span>${label}</span><strong>${displayValue(row[key])}</strong>`).join('');
+    }
+    function renderExamAllFields(row) {
+      const entries = Object.entries(row).sort(([a], [b]) => a.localeCompare(b));
+      examFieldCount.textContent = `${fmt(entries.length)} 项`;
+      if (!entries.length) {
+        examAllFields.innerHTML = '<div class="empty">没有 examinfo 字段</div>';
+        return;
+      }
+      examAllFields.innerHTML = entries
+        .map(([key, value]) => `<span>${escapeHtml(key)}</span><span>${displayValue(value)}</span>`)
+        .join('');
+    }
+    function renderLis(items, count) {
+      lisCount.textContent = `${fmt(count || items.length)} 条`;
+      if (!items.length) {
+        lis.innerHTML = '<tr><td colspan="5" class="empty">该患者暂无 LIS 明细，或需要重新扫描生成 lis_records</td></tr>';
+        return;
+      }
+      lis.innerHTML = items.map(item => `
+        <tr>
+          <td>${displayValue(item.JCZBMC)}</td>
+          <td>${displayValue(item.JCZBJG)}</td>
+          <td>${displayValue(item.JLDW)}</td>
+          <td>${displayValue(item.CKZ)}</td>
+          <td>${displayValue(item.YCTS)}</td>
+        </tr>
+      `).join('');
+    }
+    function clearDetail() {
+      closeDetail();
+    }
+    function closeDetail() {
+      detailModal.classList.remove('open');
+      examinfo.textContent = '加载中...';
+      examAllFields.innerHTML = '';
+      examFieldCount.textContent = '';
+      lis.innerHTML = '';
+      lisCount.textContent = '加载中';
+    }
+    loadStats(); loadPatients(); pollStatus();
+  </script>
+</body>
+</html>
